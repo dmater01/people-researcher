@@ -43,7 +43,7 @@ class Person(BaseModel):
     """The current company of the person."""
     linkedin: Optional[str] = None
     """The Linkedin URL of the person."""
-    email: str
+    email: Optional[str] = None
     """The email of the person."""
     role: Optional[str] = None
     """The current title of the person."""
@@ -80,6 +80,12 @@ class OverallState:
     user_notes: str = field(default=None)
     "Any notes from the user to start the research process."
 
+    subject_type: str = field(default="executive")
+    "Detected subject type used to select the extraction schema (executive/politician/entertainer/athlete/academic/journalist)"
+
+    abort_reason: Optional[str] = field(default=None)
+    "Set by classify_subject when the subject is fictional, ambiguous beyond use, or otherwise unresearchable"
+
     search_queries: list[str] = field(default=None)
     "List of generated search queries to find relevant information"
 
@@ -94,11 +100,20 @@ class OverallState:
     This is the primary output of the enrichment process.
     """
 
+    verification: dict[str, Any] = field(default=None)
+    "Fact-check results for each extracted field"
+
     is_satisfactory: bool = field(default=None)
     "True if all required fields are well populated, False otherwise"
 
     reflection_steps_taken: int = field(default=0)
     "Number of times the reflection node has been executed"
+
+    bio: Optional[str] = field(default=None)
+    "Narrative biography synthesized from research notes and web sources."
+
+    bio_sources: list[str] = field(default_factory=list)
+    "URLs cited in the bio."
 
 
 @dataclass(kw_only=True)
@@ -115,3 +130,15 @@ class OutputState:
     based on the user's query and the graph's execution.
     This is the primary output of the enrichment process.
     """
+
+    verification: Optional[dict[str, Any]] = None
+    "Fact-check results for each extracted field"
+
+    subject_type: Optional[str] = None
+    "Detected subject type (executive/politician/entertainer/athlete/academic/journalist)"
+
+    bio: Optional[str] = None
+    "Narrative biography synthesized from research notes and web sources."
+
+    bio_sources: list[str] = field(default_factory=list)
+    "URLs cited in the bio."

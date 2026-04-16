@@ -1,6 +1,6 @@
 import os
 from dataclasses import dataclass, fields
-from typing import Any, Optional
+from typing import Any, Optional, Literal
 
 from langchain_core.runnables import RunnableConfig
 
@@ -9,9 +9,16 @@ from langchain_core.runnables import RunnableConfig
 class Configuration:
     """The configurable fields for the chatbot."""
 
-    max_search_queries: int = 3  # Max search queries per person
+    max_search_queries: int = 5  # Max search queries per person
     max_search_results: int = 3  # Max search results per query
     max_reflection_steps: int = 0  # Max reflection steps
+    search_provider: Literal["tavily", "brave", "serper"] = "tavily"
+    search_days: int = 180  # How many days back Tavily searches (180 = ~6 months)
+    enable_deep_scrape: bool = False
+    generate_bio: bool = True
+    min_classify_confidence: float = 0.25
+    llm_provider: Literal["anthropic", "ollama"] = "anthropic"
+    ollama_model: str = "llama3"
 
     @classmethod
     def from_runnable_config(

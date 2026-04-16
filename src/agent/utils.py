@@ -23,7 +23,7 @@ def deduplicate_and_format_sources(
             if isinstance(response, dict) and "results" in response:
                 sources_list.extend(response["results"])
             else:
-                sources_list.extend(response)
+                sources_list.append(response)
     else:
         raise ValueError(
             "Input must be either a dict with 'results' or a list of search results"
@@ -50,7 +50,6 @@ def deduplicate_and_format_sources(
             raw_content = source.get("raw_content", "")
             if raw_content is None:
                 raw_content = ""
-                print(f"Warning: No raw_content found for source {source['url']}")
             if len(raw_content) > char_limit:
                 raw_content = raw_content[:char_limit] + "... [truncated]"
             formatted_text += f"Full source content limited to {max_tokens_per_source} tokens: {raw_content}\n\n"
