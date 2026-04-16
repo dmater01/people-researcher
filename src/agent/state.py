@@ -64,6 +64,9 @@ class InputState:
     user_notes: Optional[dict[str, Any]] = field(default=None)
     "Any notes from the user to start the research process."
 
+    subject_type: str = field(default="executive")
+    "Subject type hint — set to a built-in type name, 'custom', or 'executive' for auto-detect."
+
 
 @dataclass(kw_only=True)
 class OverallState:

@@ -102,6 +102,10 @@ def classify_subject(state: OverallState, config: RunnableConfig) -> dict[str, A
     configurable = Configuration.from_runnable_config(config)
 
     # If schema was pinned via CLI, skip LLM classification entirely
+    if state.subject_type == "custom":
+        # Custom JSON schema provided by user — use as-is
+        print(f"[classify_subject] Using custom schema: {state.extraction_schema.get('title', '(untitled)')}")
+        return {"subject_type": "custom", "extraction_schema": state.extraction_schema}
     if state.subject_type and state.subject_type != "executive":
         schema = SCHEMAS.get(state.subject_type, SCHEMAS["executive"])
         print(f"[classify_subject] Using pinned schema: {state.subject_type}")
@@ -523,10 +527,15 @@ def gather_notes_extract_schema(state: OverallState, config: RunnableConfig) -> 
     notes = format_all_notes(state.completed_notes)
 
     # Extract schema fields
+    # Sanitize the title for Anthropic tool-name requirements: ^[a-zA-Z0-9_-]{1,128}$
+    safe_schema = dict(state.extraction_schema)
+    if "title" in safe_schema:
+        safe_schema["title"] = re.sub(r"[^a-zA-Z0-9_-]", "_", safe_schema["title"])[:128]
+
     system_prompt = EXTRACTION_PROMPT.format(
         info=json.dumps(state.extraction_schema, indent=2), notes=notes
     )
-    structured_llm = model.with_structured_output(state.extraction_schema)
+    structured_llm = model.with_structured_output(safe_schema)
     result = structured_llm.invoke(
         [
             {"role": "system", "content": system_prompt},
