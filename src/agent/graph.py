@@ -233,19 +233,48 @@ async def research_person(state: OverallState, config: RunnableConfig) -> dict[s
     provider = configurable.search_provider
     model = get_model(configurable)
 
+    person_name = state.person.name or (state.person.email.split("@")[0] if state.person.email else "unknown")
+
     # LinkedIn lookup via Tavily (cached index — Jina is blocked by LinkedIn)
+    # If no LinkedIn URL was provided, auto-discover it first via name search.
+    linkedin_url: str | None = state.person.linkedin
     linkedin_task = None
-    if state.person.linkedin and provider == "tavily":
+
+    if provider == "tavily" and not linkedin_url:
+        try:
+            li_discovery = await tavily_async_client.search(
+                f'"{person_name}" site:linkedin.com/in',
+                max_results=5,
+                include_raw_content=False,
+                topic="general",
+            )
+            for r in (li_discovery.get("results", []) if isinstance(li_discovery, dict) else []):
+                url = r.get("url", "")
+                # Accept only /in/ profile URLs — reject /company/, /posts/, /pub/, /school/
+                if (
+                    "linkedin.com/in/" in url
+                    and not any(p in url for p in ["/posts/", "/activity", "/feed/", "/pulse/", "/detail/"])
+                ):
+                    linkedin_url = url.split("?")[0].rstrip("/")  # strip tracking params
+                    print(f"LinkedIn discovered: {linkedin_url}")
+                    break
+            if not linkedin_url:
+                print("LinkedIn: profile URL not found via search")
+        except Exception as e:
+            print(f"LinkedIn discovery error: {e}")
+
+    if linkedin_url and provider == "tavily":
         linkedin_task = asyncio.create_task(
             tavily_async_client.search(
-                state.person.linkedin,
+                linkedin_url,
                 max_results=3,
                 include_raw_content=True,
                 topic="general",
                 include_domains=["linkedin.com"],
             )
         )
-        print(f"Fetching LinkedIn: {state.person.linkedin}")
+        if state.person.linkedin:
+            print(f"Fetching LinkedIn: {linkedin_url}")  # user-supplied, already printed above if discovered
 
     # Web search
     search_tasks = []
@@ -264,8 +293,6 @@ async def research_person(state: OverallState, config: RunnableConfig) -> dict[s
             search_tasks.append(brave_search(query, max_results=max_search_results))
         elif provider == "serper":
             search_tasks.append(serper_search(query, max_results=max_search_results))
-
-    person_name = state.person.name or (state.person.email.split("@")[0] if state.person.email else "unknown")
 
     # Additional targeted searches on social/interview domains (Tavily only)
     if provider == "tavily":
@@ -295,7 +322,7 @@ async def research_person(state: OverallState, config: RunnableConfig) -> dict[s
             )
         )
 
-    # Execute all searches concurrently (LinkedIn scrape already running in background)
+    # Execute all searches concurrently (LinkedIn task already running in background)
     search_results = await asyncio.gather(*search_tasks)
 
     # Standardize results for Tavily vs others
@@ -311,6 +338,7 @@ async def research_person(state: OverallState, config: RunnableConfig) -> dict[s
             all_docs.extend(res)
 
     # Collect LinkedIn result — keep only the actual profile page, skip posts/activity
+    linkedin_url_confirmed: str | None = None
     if linkedin_task:
         linkedin_res = await linkedin_task
         linkedin_docs = linkedin_res.get("results", []) if isinstance(linkedin_res, dict) else []
@@ -320,6 +348,8 @@ async def research_person(state: OverallState, config: RunnableConfig) -> dict[s
             # Skip posts, activity, and comment pages — only use profile URLs
             if any(p in url for p in ["/posts/", "/activity", "/feed/", "/pulse/"]):
                 continue
+            if "linkedin.com/in/" not in url:
+                continue
             content = (doc.get("raw_content") or doc.get("content") or "").strip()
             if content:
                 all_docs.append({
@@ -327,16 +357,17 @@ async def research_person(state: OverallState, config: RunnableConfig) -> dict[s
                     "content": content[:4000],
                     "title": f"LinkedIn profile — {doc.get('title', state.person.name or state.person.email)}",
                 })
+                linkedin_url_confirmed = url.split("?")[0].rstrip("/")
                 profile_added = True
                 # Print first substantive line
                 for line in content.splitlines():
                     line = line.strip()
                     if len(line) > 20 and not line.startswith("http") and not line.startswith("["):
-                        print(f"LinkedIn: {line[:120]}")
+                        print(f"LinkedIn profile: {line[:120]}")
                         break
                 break
         if not profile_added:
-            print("LinkedIn: no profile page found (posts only)")
+            print("LinkedIn: no profile content retrieved")
 
     # Company website scrape — search for the person's bio on their current company site
     if state.person.company and provider == "tavily":
@@ -529,6 +560,10 @@ async def research_person(state: OverallState, config: RunnableConfig) -> dict[s
         out["youtube_videos"] = yt_videos_out
     if yt_channel_out:
         out["youtube_channel"] = yt_channel_out
+    # Prefer confirmed profile URL; fall back to discovered URL if content wasn't retrieved
+    final_linkedin = linkedin_url_confirmed or linkedin_url
+    if final_linkedin:
+        out["linkedin_url"] = final_linkedin
     return out
 
 

@@ -112,6 +112,9 @@ class OverallState:
     reflection_steps_taken: int = field(default=0)
     "Number of times the reflection node has been executed"
 
+    linkedin_url: Optional[str] = field(default=None)
+    "Confirmed LinkedIn profile URL (auto-discovered or user-supplied)"
+
     youtube_channel: Optional[str] = field(default=None)
     "YouTube channel URL if a personal channel was found"
 
@@ -145,6 +148,9 @@ class OutputState:
 
     subject_type: Optional[str] = None
     "Detected subject type (executive/politician/entertainer/athlete/academic/journalist)"
+
+    linkedin_url: Optional[str] = None
+    "Confirmed LinkedIn profile URL"
 
     youtube_channel: Optional[str] = None
     "YouTube channel URL if a personal channel was found"
