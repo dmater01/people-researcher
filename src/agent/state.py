@@ -112,6 +112,12 @@ class OverallState:
     reflection_steps_taken: int = field(default=0)
     "Number of times the reflection node has been executed"
 
+    youtube_channel: Optional[str] = field(default=None)
+    "YouTube channel URL if a personal channel was found"
+
+    youtube_videos: list[dict] = field(default_factory=list)
+    "List of YouTube videos found — each has 'title' and 'url' keys"
+
     bio: Optional[str] = field(default=None)
     "Narrative biography synthesized from research notes and web sources."
 
@@ -139,6 +145,12 @@ class OutputState:
 
     subject_type: Optional[str] = None
     "Detected subject type (executive/politician/entertainer/athlete/academic/journalist)"
+
+    youtube_channel: Optional[str] = None
+    "YouTube channel URL if a personal channel was found"
+
+    youtube_videos: list[dict] = field(default_factory=list)
+    "List of YouTube videos — each has 'title' and 'url' keys"
 
     bio: Optional[str] = None
     "Narrative biography synthesized from research notes and web sources."

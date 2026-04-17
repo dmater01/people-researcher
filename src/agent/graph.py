@@ -360,6 +360,8 @@ async def research_person(state: OverallState, config: RunnableConfig) -> dict[s
     # --- YouTube channel discovery (first pass only) ---
     # Find the person's YouTube channel URL, then Jina-scrape it for recent videos.
     # Skip on reflection loops — channel won't have changed and re-discovery adds noise.
+    yt_channel_out: str | None = None
+    yt_videos_out: list[dict] = []
     if provider == "tavily" and state.reflection_steps_taken == 0:
         yt_discovery = await tavily_async_client.search(
             f"{person_name} youtube channel",
@@ -451,6 +453,11 @@ async def research_person(state: OverallState, config: RunnableConfig) -> dict[s
                 "content": video_list_text,
                 "title": f"YouTube video list — {channel_label} ({len(video_entries)} videos)",
             })
+
+            # Store for output file
+            yt_channel_out = channel_url
+            yt_videos_out = [{"title": t, "url": u} for t, u in video_entries]
+
         else:
             print(f"No personal YouTube channel found for {person_name} — searching for featured videos...")
             # Fall back: find YouTube videos the person appears in (interviews, talks, etc.)
@@ -480,6 +487,8 @@ async def research_person(state: OverallState, config: RunnableConfig) -> dict[s
                     "content": "\n".join(video_list_lines),
                     "title": f"YouTube videos featuring {person_name} ({len(video_results)} results)",
                 })
+                # Store for output file
+                yt_videos_out = [{"title": r.get("title", "Untitled"), "url": r.get("url", "")} for r in video_results]
             else:
                 print(f"No YouTube videos found for {person_name}")
 
@@ -515,7 +524,12 @@ async def research_person(state: OverallState, config: RunnableConfig) -> dict[s
         user_notes=state.user_notes,
     )
     result = await model.ainvoke(p)
-    return {"completed_notes": [str(result.content)]}
+    out: dict[str, Any] = {"completed_notes": [str(result.content)]}
+    if yt_videos_out:
+        out["youtube_videos"] = yt_videos_out
+    if yt_channel_out:
+        out["youtube_channel"] = yt_channel_out
+    return out
 
 
 def gather_notes_extract_schema(state: OverallState, config: RunnableConfig) -> dict[str, Any]:
